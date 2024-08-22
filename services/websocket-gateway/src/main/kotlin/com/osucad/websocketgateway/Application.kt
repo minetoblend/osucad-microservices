@@ -1,18 +1,42 @@
 package com.osucad.websocketgateway
 
+import com.osucad.websocketgateway.config.Development
+import com.osucad.websocketgateway.config.Production
+import com.osucad.websocketgateway.plugins.configureHealthChecks
+import com.osucad.websocketgateway.plugins.configureMetrics
+import com.osucad.websocketgateway.plugins.configureRouting
 import com.osucad.websocketgateway.plugins.configureSerialization
 import io.ktor.server.application.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.netty.*
+import org.koin.core.module.Module
+import org.koin.dsl.module
+import org.koin.ksp.generated.module
+import org.koin.ktor.plugin.Koin
+import org.koin.logger.slf4jLogger
 
-fun main(args: Array<String>) = io.ktor.server.netty.EngineMain.main(args)
+fun main(args: Array<String>) = EngineMain.main(args)
 
-fun Application.main() {
-    configureSerialization()
+fun Application.development() {
+    main(Development().module)
+}
 
-    routing {
-        get {
-            call.respondText("Hello, world!")
-        }
+fun Application.production() {
+    main(Production().module)
+}
+
+fun Application.main(module: Module) {
+    install(Koin) {
+        slf4jLogger()
+        modules(
+            module {
+                single { environment }
+            },
+            module,
+        )
     }
+
+    configureSerialization()
+    configureMetrics()
+    configureHealthChecks()
+    configureRouting()
 }
