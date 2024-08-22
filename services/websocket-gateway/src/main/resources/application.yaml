@@ -1,0 +1,5 @@
+ktor:
+  application:
+    modules: [com.osucad.websocketgateway.ApplicationKt.main]
+  deployment:
+    port: 8080
