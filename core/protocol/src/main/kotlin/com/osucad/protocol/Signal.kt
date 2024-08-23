@@ -3,29 +3,23 @@ package com.osucad.protocol
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-interface SignalMessageBase {
-    val clientId: String?
-    val signal: Signal
-    val targetClientId: String?
-}
 
 @Serializable
 @SerialName("submit_signal")
-data class SubmitSignal(
+data class SubmitSignalRequest(
     val documentId: String,
-    override val clientId: String,
-    override val signal: Signal,
-    override val targetClientId: String? = null,
-) : ClientMessage, SignalMessageBase
+    val signal: Signal,
+    val targetClientId: String? = null,
+) : ClientMessage
 
 @Serializable
 @SerialName("signal")
-data class ProcessedSignal(
+data class SignalWithSender(
     val documentId: String,
-    override val clientId: String?,
-    override val targetClientId: String?,
-    override val signal: Signal,
-) : ServerMessage, SignalMessageBase
+    val clientId: String?,
+    val signal: Signal,
+    val targetClientId: String? = null,
+) : ServerMessage
 
 @Serializable
 sealed interface Signal

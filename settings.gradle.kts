@@ -5,5 +5,6 @@ rootProject.name = "osucad-microservices"
 
 include(
     ":core:protocol",
+    ":core:gateway",
     ":services:websocket-gateway"
 )

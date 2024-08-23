@@ -5,18 +5,30 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 @SerialName("connect_document")
-class ConnectDocument(
-    val id: String
+class ConnectDocumentRequest(
+    val seq: Long,
+    val id: String,
+    val token: String? = null
 ) : ClientMessage
 
 @Serializable
 @SerialName("disconnect_document")
-class DisconnectDocument(
+class DisconnectDocumentRequest(
+    val seq: Long,
     val id: String
 ) : ClientMessage
 
 @Serializable
 @SerialName("connect_document_success")
 class ConnectDocumentSuccess(
-    val id: String
+    val seq: Long,
+    val id: String,
+) : ServerMessage
+
+@Serializable
+@SerialName("connect_document_error")
+class ConnectDocumentError(
+    val seq: Long,
+    val id: String,
+    val error: String,
 ) : ServerMessage
