@@ -4,5 +4,6 @@ plugins {
 rootProject.name = "osucad-microservices"
 
 include(
+    ":core:protocol",
     ":services:websocket-gateway"
 )

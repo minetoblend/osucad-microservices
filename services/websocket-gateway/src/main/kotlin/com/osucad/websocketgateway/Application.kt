@@ -6,6 +6,8 @@ import com.osucad.websocketgateway.plugins.configureHealthChecks
 import com.osucad.websocketgateway.plugins.configureMetrics
 import com.osucad.websocketgateway.plugins.configureRouting
 import com.osucad.websocketgateway.plugins.configureSerialization
+import com.osucad.websocketgateway.plugins.configureWebSockets
+import com.osucad.websocketgateway.services.ServiceModule
 import io.ktor.server.application.*
 import io.ktor.server.netty.*
 import org.koin.core.module.Module
@@ -31,6 +33,7 @@ fun Application.main(module: Module) {
             module {
                 single { environment }
             },
+            ServiceModule().module,
             module,
         )
     }
@@ -38,5 +41,6 @@ fun Application.main(module: Module) {
     configureSerialization()
     configureMetrics()
     configureHealthChecks()
+    configureWebSockets()
     configureRouting()
 }
