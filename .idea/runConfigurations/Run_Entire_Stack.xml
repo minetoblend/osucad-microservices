@@ -1,5 +1,6 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run Entire Stack" type="CompoundRunConfigurationType">
+    <toRun name="Create Development Environment" type="docker-deploy" />
     <toRun name="Websocket Gateway" type="JetRunConfigurationType" />
     <method v="2" />
   </configuration>
