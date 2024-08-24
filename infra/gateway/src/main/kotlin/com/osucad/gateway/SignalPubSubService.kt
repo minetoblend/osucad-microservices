@@ -1,4 +1,4 @@
-package com.osucad.websocketgateway.services
+package com.osucad.gateway
 
 import com.osucad.gateway.signals.SignalPublisher
 import com.osucad.gateway.signals.SignalSubscriber

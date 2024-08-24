@@ -5,6 +5,7 @@ import com.osucad.gateway.signals.SignalPublisher
 import com.osucad.gateway.signals.SignalSubscriber
 import com.osucad.protocol.*
 import dev.inmo.krontab.doInfinity
+import io.micrometer.core.instrument.Timer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -20,6 +21,7 @@ class WebSocketGateway(
     private val signalPublisher: SignalPublisher,
     private val signalSubscriber: SignalSubscriber,
     private val serializer: Json = Json,
+    private val metrics: WebsocketGatewayMetrics? = null,
 ) {
     private val connectedClients = ConcurrentHashMap<String, WebSocketClient>()
 
@@ -45,7 +47,7 @@ class WebSocketGateway(
         }
     }
 
-    suspend fun onConnection(socket: WebSocketConnection) {
+    suspend fun accept(socket: WebSocketConnection) {
         val clientId = clientIdGenerator.next()
 
         val client = WebSocketClient(clientId, socket, serializer)
@@ -70,7 +72,16 @@ class WebSocketGateway(
                     return
                 }
 
-                handleMessage(client, message)
+                metrics?.receivedMessageCounter?.withTags("type", message.type)?.increment()
+
+                val sample = Timer.start()
+
+                try {
+                    handleMessage(client, message)
+                } finally {
+                    if (metrics != null)
+                        sample.stop(metrics.messageHandleDuration.withTags("type", message.type))
+                }
             }
         } catch (e: ConnectionClosedException) {
             // Connection was closed, do nothing
@@ -108,11 +119,31 @@ class WebSocketGateway(
         }
     }
 
-    private fun onClose(client: WebSocketClient) {
+    private suspend fun onClose(client: WebSocketClient) {
         connectedClients.remove(client.id)
 
         clientDocuments.remove(client.id)?.forEach { documentId ->
-            documents[documentId]?.clients?.remove(client)
+            runCatching {
+                disconnectDocument(client, documentId)
+            }.onFailure {
+                logger.error(it) { "Failed to remove client from document" }
+            }
+        }
+    }
+
+    private suspend fun disconnectDocument(client: WebSocketClient, documentId: String) {
+        val document = documents[documentId] ?: return
+
+        if (document.clients.remove(client)) {
+            clientDocuments[client.id]?.remove(documentId)
+
+            signalPublisher.publish(
+                SignalWithSender(
+                    documentId = documentId,
+                    clientId = client.id,
+                    signal = UserLeft(client.id)
+                )
+            )
         }
     }
 
@@ -138,6 +169,26 @@ class WebSocketGateway(
         logger.debug { "Stopped tracking $removed documents without connected clients" }
     }
 
+    inner class WebSocketClient(
+        val id: String,
+        private val connection: WebSocketConnection,
+        private val serializer: Json,
+    ) {
+        suspend fun receiveMessage(): ClientMessage =
+            serializer.decodeFromString<ClientMessage>(connection.receiveText())
+
+        suspend fun close() = connection.close()
+
+        internal suspend fun sendText(message: String) = connection.send(message)
+
+        suspend fun send(message: ServerMessage) {
+            sendText(serializer.encodeToString(message))
+            metrics?.sentMessageCounter?.withTags("type", message.type)?.increment()
+        }
+
+    }
+
+
     // region Message handlers
 
     private val documents = ConcurrentHashMap<String, DocumentInfo>()
@@ -145,9 +196,7 @@ class WebSocketGateway(
     private val clientDocuments = ConcurrentHashMap<String, MutableSet<String>>()
 
     private suspend fun connectDocument(client: WebSocketClient, message: ConnectDocumentRequest) {
-        val document = documents.computeIfAbsent(message.id) {
-            DocumentInfo(message.id)
-        }
+        val document = getOrCreateDocument(message.id)
 
         if (!document.clients.add(client)) {
             clientDocuments
@@ -180,27 +229,10 @@ class WebSocketGateway(
         )
     }
 
-    private suspend fun disconnectDocument(client: WebSocketClient, message: DisconnectDocumentRequest) {
-        val document = documents[message.id] ?: return
-
-        if (document.clients.remove(client)) {
-            clientDocuments[client.id]?.remove(message.id)
-
-            signalPublisher.publish(
-                documentId = message.id,
-                clientId = null,
-                signal = UserLeft(
-                    clientId = client.id
-                ),
-            )
-
-
-            if (document.clients.isEmpty()) {
-                documents.remove(message.id)
-                signalSubscriber.stopTrackingDocument(message.id)
-            }
-        }
-    }
+    private suspend fun disconnectDocument(
+        client: WebSocketClient,
+        message: DisconnectDocumentRequest
+    ) = disconnectDocument(client, message.id)
 
     private suspend fun submitSignal(
         client: WebSocketClient,

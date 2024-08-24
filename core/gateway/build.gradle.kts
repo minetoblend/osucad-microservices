@@ -9,4 +9,5 @@ dependencies {
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0-RC.2")
     implementation("dev.inmo:krontab:2.4.0")
+    implementation("io.micrometer:micrometer-core:1.12.4")
 }
