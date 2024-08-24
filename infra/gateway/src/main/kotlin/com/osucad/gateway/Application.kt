@@ -1,6 +1,7 @@
 package com.osucad.gateway
 
 import com.osucad.microservice.configureMicroservice
+import com.osucad.microservice.configureRabbitMQ
 import com.osucad.microservice.configureWebSockets
 import io.ktor.server.application.*
 import io.ktor.server.config.*

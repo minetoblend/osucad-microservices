@@ -1,11 +1,9 @@
-package com.osucad.gateway
+package com.osucad.microservice
 
 import com.rabbitmq.client.Connection
 import com.rabbitmq.client.ConnectionFactory
 import io.ktor.server.application.*
 import io.ktor.server.config.*
-import org.koin.core.annotation.Module
-import org.koin.core.annotation.Single
 import org.koin.dsl.module
 import org.koin.ktor.plugin.koin
 
