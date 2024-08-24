@@ -1,0 +1,10 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Websocket Gateway" type="JetRunConfigurationType">
+    <option name="MAIN_CLASS_NAME" value="com.osucad.gateway.ApplicationKt" />
+    <module name="osucad-microservices.infra.gateway.main" />
+    <shortenClasspath name="NONE" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>
