@@ -4,7 +4,8 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":core:gateway"))
     implementation(project(":core:protocol"))
+    implementation(project(":core:gateway"))
+    implementation(project(":core:delta-orderer"))
     implementation(project(":infra:microservice-base"))
 }

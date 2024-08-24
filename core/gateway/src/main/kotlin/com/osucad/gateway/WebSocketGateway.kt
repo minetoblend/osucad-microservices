@@ -1,14 +1,17 @@
 package com.osucad.gateway
 
 import com.github.michaelbull.logging.InlineLogger
+import com.osucad.gateway.operations.OrderedOperationsSubscriber
 import com.osucad.gateway.signals.SignalPublisher
 import com.osucad.gateway.signals.SignalSubscriber
 import com.osucad.protocol.*
+import com.osucad.protocol.operations.UnorderedOperation
 import dev.inmo.krontab.doInfinity
 import io.micrometer.core.instrument.Timer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.launch
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.encodeToString
@@ -20,8 +23,10 @@ class WebSocketGateway(
     private val shardId: Int = 0,
     private val signalPublisher: SignalPublisher,
     private val signalSubscriber: SignalSubscriber,
+    private val operationPublisher: FlowCollector<UnorderedOperation>,
+    private val operationSubscriber: OrderedOperationsSubscriber,
     private val serializer: Json = Json,
-    private val metrics: WebsocketGatewayMetrics? = null,
+    private val metrics: WebSocketGatewayMetrics = NoopWebSocketGatewayMetrics
 ) {
     private val connectedClients = ConcurrentHashMap<String, WebSocketClient>()
 
@@ -37,6 +42,12 @@ class WebSocketGateway(
         scope.launch {
             signalSubscriber.subscribe { signal ->
                 broadcastLocal(signal.documentId, signal)
+            }
+        }
+
+        scope.launch {
+            operationSubscriber.subscribe { operations ->
+                broadcastLocal(operations.documentId, operations)
             }
         }
 
@@ -72,15 +83,10 @@ class WebSocketGateway(
                     return
                 }
 
-                metrics?.receivedMessageCounter?.withTags("type", message.type)?.increment()
+                metrics.messageReceived(message.type, client.id)
 
-                val sample = Timer.start()
-
-                try {
+                metrics.measureHandleMessage(message.type, client.id) {
                     handleMessage(client, message)
-                } finally {
-                    if (metrics != null)
-                        sample.stop(metrics.messageHandleDuration.withTags("type", message.type))
                 }
             }
         } catch (e: ConnectionClosedException) {
@@ -102,9 +108,20 @@ class WebSocketGateway(
         if (clients.isEmpty()) return
 
         val serialized = serializer.encodeToString(message)
-        clients.forEach { it.sendText(serialized) }
+        clients.forEach { client ->
+            try {
+                client.sendText(serialized)
+            } catch (e: Exception) {
+                logger.error(e) { "Failed to send message to client: ${client.id}" }
+                forceDisconnect(client)
+            }
+        }
     }
 
+    /**
+     * Broadcast a message to all clients connected to a document. It will not broadcast to clients
+     * of other shards.
+     */
     private suspend fun broadcastLocal(documentId: String, message: ServerMessage) {
         broadcast(message, documents[documentId]?.clients ?: emptySet())
     }
@@ -116,7 +133,12 @@ class WebSocketGateway(
             is ConnectDocumentRequest -> connectDocument(client, message)
             is DisconnectDocumentRequest -> disconnectDocument(client, message)
             is SubmitSignalRequest -> submitSignal(client, message)
+            is SubmitOperation -> submitOperations(client, message)
         }
+    }
+
+    private suspend fun forceDisconnect(client: WebSocketClient) {
+        client.close()
     }
 
     private suspend fun onClose(client: WebSocketClient) {
@@ -147,6 +169,21 @@ class WebSocketGateway(
         }
     }
 
+    private suspend fun submitOperations(client: WebSocketClient, message: SubmitOperation) {
+        val document = documents[message.documentId] ?: return
+
+        if (client !in document.clients)
+            return
+
+        operationPublisher.emit(
+            UnorderedOperation(
+                client.id,
+                message.documentId,
+                message.deltas,
+            )
+        )
+    }
+
     private fun runGarbageCollection() {
         logger.debug { "Running garbage collection" }
 
@@ -157,7 +194,7 @@ class WebSocketGateway(
         keys.forEach { documentId ->
             documents.computeIfPresent(documentId) { _, document ->
                 if (document.clients.isEmpty()) {
-                    signalSubscriber.stopTrackingDocument(documentId)
+                    stopTrackingDocument(documentId)
                     removed++
                     null
                 } else {
@@ -183,7 +220,7 @@ class WebSocketGateway(
 
         suspend fun send(message: ServerMessage) {
             sendText(serializer.encodeToString(message))
-            metrics?.sentMessageCounter?.withTags("type", message.type)?.increment()
+            metrics.messageSent(message.type, id)
         }
 
     }
@@ -261,9 +298,19 @@ class WebSocketGateway(
         }
 
         if (created)
-            signalSubscriber.startTrackingDocument(id)
+            startTrackingDocument(id)
 
         return document
+    }
+
+    private fun startTrackingDocument(documentId: String) {
+        signalSubscriber.startTrackingDocument(documentId)
+        operationSubscriber.startTrackingDocument(documentId)
+    }
+
+    private fun stopTrackingDocument(documentId: String) {
+        signalSubscriber.stopTrackingDocument(documentId)
+        operationSubscriber.stopTrackingDocument(documentId)
     }
 
     private class DocumentInfo(val id: String) {

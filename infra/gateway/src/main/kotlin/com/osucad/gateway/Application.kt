@@ -18,12 +18,15 @@ fun Application.main() {
 
     val signals = SignalPubSub(connection = get(), serializer = get())
 
+
     val gateway = WebSocketGateway(
         shardId = environment.config.tryGetString("ktor.application.shardId")?.toInt() ?: 0,
         serializer = get(),
         signalSubscriber = signals,
         signalPublisher = signals,
-        metrics = WebsocketGatewayMetrics(get())
+        operationPublisher = RabbitMQUnorderedOperationPublisher(get(), get()),
+        operationSubscriber = RabbitMQOrderedOperationsSubscriber(get(), get()),
+        metrics = MicrometerWebsocketGatewayMetrics(get())
     )
 
     routing {
