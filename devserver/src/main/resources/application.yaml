@@ -1,0 +1,12 @@
+ktor:
+  deployment:
+    port: 8080
+  application:
+    modules: [ com.osucad.devserver.ApplicationKt.main ]
+    shardId: '$SHARD_ID:0'
+
+rabbitmq:
+  host: "$RABBITMQ_HOST:localhost"
+  port: "$RABBITMQ_PORT:5672"
+  username: "$RABBITMQ_USER:guest"
+  password: "$RABBITMQ_PASSWORD:guest"

@@ -8,4 +8,5 @@ include(
     ":core:gateway",
     ":infra:microservice-base",
     ":infra:gateway",
+    ":devserver"
 )
