@@ -3,8 +3,15 @@ ktor:
     port: 8080
   application:
     modules: [ com.osucad.gateway.ApplicationKt.main ]
+    shardId: '$SHARD_ID:0'
+
+rabbitmq:
+  host: "$RABBITMQ_HOST:localhost"
+  port: "$RABBITMQ_PORT:5672"
+  username: "$RABBITMQ_USER:guest"
+  password: "$RABBITMQ_PASSWORD:guest"
 
 metrics:
   datadog:
     uri: "https://api.datadoghq.eu"
-    apiKey: "$DATADOG_API_KEY"
+    apiKey: "$DATADOG_API_KEY:"

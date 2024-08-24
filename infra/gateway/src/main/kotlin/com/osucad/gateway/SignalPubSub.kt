@@ -15,15 +15,15 @@ import org.koin.core.annotation.Single
 import org.slf4j.LoggerFactory
 
 @Single
-class SignalPubSubService(
+class SignalPubSub(
     connection: Connection,
-    private val json: Json,
+    private val serializer: Json,
 ) : SignalPublisher, SignalSubscriber {
     private val channel = connection.createConfirmChannel()
 
     private val queue = channel.queueDeclare().queue
 
-    private val logger = LoggerFactory.getLogger(SignalPubSubService::class.java)
+    private val logger = LoggerFactory.getLogger(SignalPubSub::class.java)
 
     companion object {
         const val SIGNALS_EXCHANGE = "signals"
@@ -38,7 +38,7 @@ class SignalPubSubService(
     override suspend fun publish(signal: SignalWithSender) {
         logger.info("Publishing signal: {}", signal)
 
-        val message = json.encodeToString(signal)
+        val message = serializer.encodeToString(signal)
 
         channel.publish {
             publishWithConfirm(
@@ -57,7 +57,7 @@ class SignalPubSubService(
             consumeMessagesWithConfirm { delivery ->
                 val message = String(delivery.body, charset("UTF-8"))
 
-                val signal = json.decodeFromString<SignalWithSender>(message)
+                val signal = serializer.decodeFromString<SignalWithSender>(message)
 
                 block(signal)
             }
