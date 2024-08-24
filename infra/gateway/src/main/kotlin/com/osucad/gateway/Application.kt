@@ -27,12 +27,10 @@ fun Application.main() {
     )
 
     routing {
-        route("/api") {
-            webSocket("/gateway") {
-                val connection = KtorWebsocketConnection(this)
+        webSocket("/api/gateway") {
+            val connection = KtorWebsocketConnection(this)
 
-                gateway.accept(connection)
-            }
+            gateway.accept(connection)
         }
     }
 }
